@@ -1,0 +1,5 @@
+Gene,Median_Normal,Median_Tumor,log2FC,MannWhitney_p,Significance,n_Normal_GTEx,n_Tumor_TCGA
+TRPC1,0.451,4.809,4.358,1.81e-92,***,226,373
+TRPC6,0.062,4.112,4.05,9.13e-92,***,226,373
+STIM1,4.203,11.244,7.042,1.16e-93,***,226,373
+ORAI1,3.239,8.993,5.754,1.16e-93,***,226,373

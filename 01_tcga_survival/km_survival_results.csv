@@ -1,0 +1,5 @@
+Gene,KM_logrank_pvalue,Median_OS_High_months,Median_OS_Low_months,Significant_OS
+TRPC1,0.1898,53.3,58.8,ns
+TRPC6,0.0325,80.7,45.1,*
+STIM1,0.0141,83.5,41.8,*
+ORAI1,0.8429,69.5,53.3,ns
