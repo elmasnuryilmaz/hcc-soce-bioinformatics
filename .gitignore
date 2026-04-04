@@ -1,0 +1,22 @@
+# GEO cache (large binary data)
+18_gse14520_validation/geo_cache/
+
+# DS_Store
+.DS_Store
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Large data files
+*.h5
+*.hdf5
+
+# Temporary files
+*.tmp
+*.bak
