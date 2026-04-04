@@ -1,0 +1,14 @@
+Compound,ChEMBL,IC50_nM,Selectivity,Developer,Cancer_Evidence,HCC_Evidence,Clinical_Stage,Year,Reference
+SAR7334,CHEMBL4129809,7.9,TRPC3/6,Bayer AG,"Breast (ferroptosis) [7], MDR-HCC [23]",MDR reversal in HCC cells [23],Preclinical,2015,"Maier et al., 2015 [25]"
+BI-749327,N/A (analog: CHEMBL5567783),13.0,TRPC6 selective,Boehringer Ingelheim,Cardiac/renal fibrosis in vivo [17],No direct HCC data; anti-fibrotic (liver stellate cells) [24],Preclinical (in vivo),2019,"Lin et al., 2019 [17]"
+GSK2833503A,CHEMBL2418811,16.0,TRPC3/6,GlaxoSmithKline,Tool compound; no cancer data,None reported,Tool compound,2014,ChEMBL [36-40]
+BP3112,Not registered,,TRPC6,Academic (China),HCC: apoptosis + G1 arrest [6],Direct HCC activity (indole-2-carboxamide) [6],Preclinical (in vitro),2023,"Qiao et al., 2023 [6]"
+PCC0208057,Not registered,,TRPC6,Academic (China),Prostate cancer: proliferation/migration/xenograft [3],None reported,Preclinical (in vivo),2024,"Wei et al., 2024 [3]"
+"Compound 14a
+(Pyrazolo-pyrimidine)",Not registered,,TRPC6,Academic,Gastric cancer [4],None reported,Preclinical (in vitro),2018,"Ding et al., 2018 [4]"
+SKF-96365,CHEMBL295698,1000.0,"Non-selective
+(TRPC/SOCE)",Sigma-Aldrich (tool),"Cervical cancer [10], HCC MDR [23]",MDR reversal in HCC [23],Tool compound,1992,"Bai et al., 2022 [10]; Wen et al., 2016 [23]"
+Larixyl acetate,N/A (analog: CHEMBL4458930),250.0,"TRPC6 (partial
+TRPM3 cross)",Natural product,Tool compound,None reported,Tool compound,2020,"Scheuble et al., 2020 [13]"
+Z3571,Not registered,,"TRPC6 (C-terminal
+domain)",Academic,Kidney disease (structure-based) [19],None reported,Preclinical (in vitro),2025,"Hao, 2025 [19]"
