@@ -1,0 +1,5 @@
+Strategy,n_high,n_low,Median_OS_high,Median_OS_low,logrank_p,Significant
+2-Gene Score (TRPC6+STIM1) Median Split,185,185,80.68,45.89,0.10945805246333958,False
+TRPC6 Expression Median Split,185,185,80.68,45.07,0.032528268348116424,True
+STIM1 Expression Median Split,185,185,83.51,41.75,0.014107684683637822,True
+TRPC6 High AND STIM1 High vs. Others,99,271,102.66,46.75,0.02524396771122447,True
