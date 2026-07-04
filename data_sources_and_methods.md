@@ -12,7 +12,7 @@
 
 | Database | Version / Release | Data Used | Access URL | Citation |
 |----------|------------------|-----------|------------|---------|
-| **cBioPortal** | TCGA-LIHC (2024 freeze) | RNA-seq RSEM expression (n=371 tumors), overall survival (OS) months/status, clinical variables (stage, grade, AFP, age, sex, vascular invasion) | https://www.cbioportal.org | Cerami et al., Cancer Discov 2012; Gao et al., Sci Signal 2013 |
+| **cBioPortal** | TCGA-LIHC (2024 freeze) | RNA-seq RSEM expression (373 tumor expression samples: 371 primary, 2 recurrent), overall survival (OS) months/status, clinical variables (stage, grade, AFP, age, sex, vascular invasion) | https://www.cbioportal.org | Cerami et al., Cancer Discov 2012; Gao et al., Sci Signal 2013 |
 | **GTEx** | v8 (dbGaP phs000424.v8) | Normal liver RNA-seq TPM (n=226 donors) | https://gtexportal.org | GTEx Consortium, Science 2020 |
 | **NCBI GEO** | GSE140202 | Sorafenib-resistant vs. sensitive HuH-7 RNA-seq (n=3 replicates/group, raw counts) | https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE140202 | Hagiwara et al., 2021 |
 
@@ -99,13 +99,13 @@
 ## 3. Analysis Methods
 
 ### 3.1 Tumor vs. Normal Expression (Section 1)
-- **Input:** TCGA-LIHC RNA-seq RSEM (log₂+1 transformed) + GTEx v8 liver TPM (log₂+1 transformed)
+- **Input:** TCGA-LIHC RNA-seq RSEM (log₂+1 transformed; n=373 tumor expression samples) + GTEx v8 liver TPM (log₂+1 transformed; n=226 donors)
 - **Test:** Two-sided Mann-Whitney U test (scipy.stats.mannwhitneyu)
 - **Genes:** TRPC1, TRPC6, STIM1, ORAI1
 - **Visualization:** Box plots with jittered individual points (matplotlib)
 
 ### 3.2 Kaplan-Meier Survival Analysis (Sections 2, 9, 13)
-- **Input:** TCGA-LIHC OS months + OS status (DECEASED/LIVING)
+- **Input:** TCGA-LIHC primary tumor samples with OS months + OS status (DECEASED/LIVING), excluding recurrent tumor specimens and one primary tumor sample without OS annotation (n=370)
 - **Stratification:** Median expression split (high ≥ median, low < median)
 - **Test:** Log-rank test (lifelines.statistics.logrank_test)
 - **Estimator:** Kaplan-Meier (lifelines.KaplanMeierFitter)
@@ -131,7 +131,7 @@
 - **Significance threshold:** FDR ≤ 0.25 (standard GSEA threshold)
 
 ### 3.6 Co-expression Analysis (Section 6)
-- **Input:** TCGA-LIHC RNA-seq RSEM (log₂+1), n=371 tumor samples
+- **Input:** TCGA-LIHC primary tumor RNA-seq RSEM (log₂+1), n=371 tumor samples
 - **Method:** Spearman rank correlation (scipy.stats.spearmanr)
 - **Gene panel:** 40 genes across SOCE, EMT, MDR, signaling, and apoptosis categories
 
@@ -165,7 +165,7 @@
 | Figure | File | Analysis | Key Finding |
 |--------|------|---------|-------------|
 | Fig 1 | Fig01_tumor_vs_normal.png | Tumor vs. normal expression | All SOCE genes overexpressed (p<10⁻⁹²) |
-| Fig 2 | Fig02_km_survival.png | Kaplan-Meier OS | STIM1 p=0.014, TRPC6 p=0.033 |
+| Fig 2 | Fig02_km_survival.png | Kaplan-Meier OS | STIM1 p=0.016, TRPC6 p=0.033 |
 | Fig 3 | Fig03_volcano_deg.png | DESeq2 DEG | TRPC6↑ in resistant cells (padj=0.0001) |
 | Fig 4 | Fig04_ppi_network.png | STRING PPI network | TRPC6 highest betweenness centrality |
 | Fig 5 | Fig05_gsea.png | GSEA | IL-17 NES=2.03, Wnt suppressed |
@@ -174,7 +174,7 @@
 | Fig 7 | Fig07_stim1_trpc6_relationship.png | STIM1-TRPC6 relationship | Independent regulation, channel-switching model |
 | Fig 8 | Fig08_cox_forest_plot.png | Multivariate Cox regression | Stage only independent factor (HR=1.678) |
 | Fig 9 | Fig09_depmap_drug_sensitivity.png | DepMap drug sensitivity | TRPC6-sorafenib trend r=−0.454 |
-| Fig 10 | Fig10_soce_risk_score_km.png | SOCE risk score KM | Dual-High p=0.025, Δ55.9 months |
+| Fig 10 | Fig10_soce_risk_score_km.png | SOCE risk score KM | Dual-High p=0.037, Δ55.9 months |
 | Fig 11 | Fig11_trpc6_inhibitor_landscape.png | ChEMBL inhibitor landscape | SAR7334 IC₅₀=7.9 nM, no clinical trials |
 | Table 1 | Fig12_dual_high_clinical_table.png | Clinical characteristics | No confounding by stage/grade/AFP |
 | Fig 13 | Fig13_crispr_essentiality.png | DepMap CRISPR essentiality | TRPC6 non-essential in all 21 HCC lines |

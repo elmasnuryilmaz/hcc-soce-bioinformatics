@@ -48,6 +48,7 @@ from common.cbioportal import fetch_clinical_data, fetch_mrna_expression
 # ── Config ─────────────────────────────────────────────────────────────────
 OUTDIR   = os.path.dirname(os.path.abspath(__file__))
 GENES    = ["STIM1", "TRPC6", "TRPC1", "ORAI1"]
+KM_GENES = ["TRPC1", "TRPC6", "STIM1", "ORAI1"]
 PALETTE  = {"Tumour": "#c0392b", "Normal": "#2980b9"}
 
 # ── 1. Download TCGA-LIHC expression via cBioPortal API ────────────────────
@@ -194,7 +195,7 @@ def plot_boxplot(expr: pd.DataFrame, gtex_medians: dict):
 
 # ── 5. Kaplan-Meier survival ────────────────────────────────────────────────
 def km_survival(expr: pd.DataFrame, clinical: pd.DataFrame):
-    """KM curves for each gene (high vs. low, split at median)."""
+    """KM curves for primary TCGA-LIHC tumors with OS annotation."""
     # Align expression and clinical
     clin = clinical.copy()
     clin.index.name = "sample"
@@ -207,7 +208,36 @@ def km_survival(expr: pd.DataFrame, clinical: pd.DataFrame):
         print("  ⚠  Could not find OS columns in clinical data. Skipping KM.")
         return
 
-    merged = expr.join(clin[[os_time_col, os_event_col]], how="inner")
+    sample_type_col = next((c for c in clin.columns if c.upper() == "SAMPLE_TYPE"), None)
+    patient_col = next((c for c in clin.columns if c.lower() in {"patientid", "patient_id"}), None)
+    clin_cols = [os_time_col, os_event_col]
+    if sample_type_col:
+        clin_cols.append(sample_type_col)
+    if patient_col:
+        clin_cols.append(patient_col)
+
+    merged = expr.join(clin[clin_cols], how="inner")
+
+    if sample_type_col:
+        before = len(merged)
+        merged = merged[
+            merged[sample_type_col]
+            .astype(str)
+            .str.strip()
+            .str.lower()
+            .eq("primary")
+        ]
+        print(
+            f"  Survival cohort: retained {len(merged)} primary tumour samples; "
+            f"excluded {before - len(merged)} recurrent/non-primary samples."
+        )
+
+    if patient_col:
+        before = len(merged)
+        merged = merged[~merged[patient_col].duplicated(keep="first")]
+        if len(merged) != before:
+            print(f"  Removed {before - len(merged)} duplicate patient-level survival records.")
+
     merged[os_time_col]  = pd.to_numeric(merged[os_time_col],  errors="coerce")
     # OS_STATUS typically "0:LIVING" / "1:DECEASED"
     merged["event"] = (
@@ -218,19 +248,23 @@ def km_survival(expr: pd.DataFrame, clinical: pd.DataFrame):
         .fillna(0)
         .astype(int)
     )
+    before = len(merged)
     merged = merged.dropna(subset=[os_time_col, "event"])
+    if len(merged) != before:
+        print(f"  Excluded {before - len(merged)} samples without OS annotation.")
 
     results = []
-    n_genes = len(GENES)
+    n_genes = len(KM_GENES)
     fig, axes = plt.subplots(1, n_genes, figsize=(5 * n_genes, 5))
     if n_genes == 1:
         axes = [axes]
     fig.suptitle(
-        "Kaplan-Meier Overall Survival — SOCE Components\n(TCGA-LIHC, n≈370)",
+        "Kaplan-Meier Overall Survival Analysis by SOCE Gene Expression\n"
+        f"(TCGA-LIHC primary tumors, n={len(merged)}, Median Split)",
         fontsize=13, fontweight="bold",
     )
 
-    for ax, gene in zip(axes, GENES):
+    for ax, gene in zip(axes, KM_GENES):
         if gene not in merged.columns:
             ax.set_visible(False); continue
 
@@ -270,6 +304,30 @@ def km_survival(expr: pd.DataFrame, clinical: pd.DataFrame):
             "median_OS_high":   float(med_h) if pd.notna(med_h) else np.nan,
             "median_OS_low":    float(med_l) if pd.notna(med_l) else np.nan,
             "logrank_p":        round(pval, 4),
+        })
+
+    if {"TRPC6", "STIM1"}.issubset(merged.columns):
+        dual_high = (
+            (merged["TRPC6"] >= merged["TRPC6"].median())
+            & (merged["STIM1"] >= merged["STIM1"].median())
+        )
+        grp_high = merged[dual_high]
+        grp_low = merged[~dual_high]
+        lr = logrank_test(
+            grp_high[os_time_col], grp_low[os_time_col],
+            grp_high["event"], grp_low["event"],
+        )
+        kmf_h = KaplanMeierFitter()
+        kmf_l = KaplanMeierFitter()
+        kmf_h.fit(grp_high[os_time_col], grp_high["event"])
+        kmf_l.fit(grp_low[os_time_col], grp_low["event"])
+        results.append({
+            "gene":             "TRPC6_STIM1_DualHigh",
+            "n_high":           len(grp_high),
+            "n_low":            len(grp_low),
+            "median_OS_high":   float(kmf_h.median_survival_time_),
+            "median_OS_low":    float(kmf_l.median_survival_time_),
+            "logrank_p":        round(lr.p_value, 4),
         })
 
     plt.tight_layout()

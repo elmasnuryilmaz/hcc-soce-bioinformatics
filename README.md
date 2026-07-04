@@ -14,6 +14,10 @@ This repository contains the bioinformatics code, analysis outputs, and reproduc
 
 The analyses use public datasets from TCGA-LIHC, GTEx, cBioPortal, DepMap, GDSC, GEO, STRING, ChEMBL, and related resources. No protected patient-level data are included in this repository.
 
+## TCGA-LIHC Cohort Convention
+
+TCGA-LIHC expression downloads contain 373 tumor expression samples: 371 primary tumor specimens and 2 recurrent tumor specimens. Patient-level clinical analyses use the 371 primary tumors only. Kaplan-Meier survival analyses additionally exclude one primary tumor sample without `OS_MONTHS`, yielding the manuscript survival cohort of `n=370`.
+
 ## Code Availability
 
 All analysis scripts and reproducibility documentation are maintained in this GitHub repository:
