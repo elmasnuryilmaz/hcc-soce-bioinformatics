@@ -1,5 +1,5 @@
-# HCC SOCE Bioinformatics — Python dependencies
-# Tested on Python 3.10 / Ubuntu 22.04 LTS
+# HCC SOCE Bioinformatics - Python dependencies
+# Manuscript-facing analyses target Python 3.11.
 
 pandas>=2.0
 numpy>=1.24
@@ -11,3 +11,4 @@ gseapy==1.1.13
 networkx==3.4.2
 GEOparse>=2.0.4
 scikit-learn>=1.3
+requests>=2.31

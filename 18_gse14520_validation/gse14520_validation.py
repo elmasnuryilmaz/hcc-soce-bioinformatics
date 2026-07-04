@@ -96,6 +96,7 @@ print(f"    Available SOCE: {[g for g in SOCE_GENES if g in expr_annot.index]}")
 print(f"    Available EMT:  {[g for g in EMT_GENES if g in expr_annot.index]}")
 
 expr_annot = expr_annot.T   # samples × genes
+expr_annot = expr_annot.groupby(level=0, axis=1).mean()
 
 # ─── 4. PARSE CLINICAL / SAMPLE METADATA ─────────────────────────────────────
 print("\n[4] Parsing clinical metadata …")
@@ -124,9 +125,14 @@ print(f"    Total samples: {len(meta)}")
 print(f"    Columns: {list(meta.columns[:10])}")
 print(meta["tissue"].value_counts().head(10))
 
-# Determine tumor vs normal
-meta["sample_type"] = meta["tissue"].apply(
-    lambda x: "Normal" if "non-tumor" in x or "normal" in x else "Tumor"
+# Determine tumor vs normal using the most informative available metadata field
+meta["tissue_label"] = (
+    meta.get("tissue", "").astype(str).str.lower() + " | " +
+    meta.get("title", "").astype(str).str.lower() + " | " +
+    meta.get("disease state", "").astype(str).str.lower()
+)
+meta["sample_type"] = meta["tissue_label"].apply(
+    lambda x: "Normal" if ("non-tumor" in x or "non tumor" in x or "normal" in x) else "Tumor"
 )
 print(f"\n    Tumor:  {(meta['sample_type']=='Tumor').sum()}")
 print(f"    Normal: {(meta['sample_type']=='Normal').sum()}")

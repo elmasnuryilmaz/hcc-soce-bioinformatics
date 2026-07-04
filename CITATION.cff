@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+title: "TRPC6-STIM1 SOCE Bioinformatics in Hepatocellular Carcinoma"
+message: "If you use this code, please cite the repository and the associated manuscript."
+type: software
+authors:
+  - family-names: "Yasar"
+    given-names: "Beste Yurdacan"
+  - family-names: "Yilmaz"
+    given-names: "Elmasnur"
+  - family-names: "Erac"
+    given-names: "Yasemin"
+repository-code: "https://github.com/elmasnuryilmaz/hcc-soce-bioinformatics"
+abstract: "Companion bioinformatics code for an integrative analysis of TRPC6, STIM1, and store-operated calcium entry genes in hepatocellular carcinoma."
+keywords:
+  - hepatocellular carcinoma
+  - SOCE
+  - TRPC6
+  - STIM1
+  - bioinformatics
+license: MIT

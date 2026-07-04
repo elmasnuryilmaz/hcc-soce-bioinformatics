@@ -4,6 +4,10 @@
 # DS_Store
 .DS_Store
 
+# Local environments
+.venv/
+venv/
+
 # Python cache
 __pycache__/
 *.pyc
@@ -18,5 +22,12 @@ __pycache__/
 *.hdf5
 
 # Temporary files
+tmp/
 *.tmp
 *.bak
+
+# Local manuscript and presentation drafts
+*.docx
+*.pptx
+*.zip
+mnt/
