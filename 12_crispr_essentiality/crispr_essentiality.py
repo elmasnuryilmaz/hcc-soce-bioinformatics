@@ -131,9 +131,11 @@ def plot_essentiality(df_hcc: pd.DataFrame):
     """Strip + box plot of CRISPR gene effect for SOCE genes in HCC lines."""
     # Melt to long form
     avail = [g for g in SOCE_GENES if g in df_hcc.columns]
-    df_long = df_hcc[avail].reset_index().melt(
-        id_vars="index", var_name="gene", value_name="gene_effect"
-    ).rename(columns={"index": "cell_line"})
+    df_reset = df_hcc[avail].reset_index()
+    cell_line_col = df_reset.columns[0]
+    df_long = df_reset.melt(
+        id_vars=cell_line_col, var_name="gene", value_name="gene_effect"
+    ).rename(columns={cell_line_col: "cell_line"})
     df_long = df_long.dropna(subset=["gene_effect"])
 
     palette = {"STIM1": "#e74c3c", "TRPC6": "#e67e22",

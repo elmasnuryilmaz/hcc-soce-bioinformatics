@@ -26,6 +26,7 @@ Outputs:
 
 import os
 import sys
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -37,6 +38,13 @@ from scipy import stats
 import requests
 import warnings
 warnings.filterwarnings("ignore")
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+from common.cbioportal import (
+    fetch_molecular_profile_data,
+    fetch_mrna_expression,
+    fetch_mutations,
+)
 
 np.random.seed(42)
 
@@ -85,31 +93,18 @@ def get_mutations(gene_list, study_id=STUDY_ID):
         return pd.read_csv(cache)
 
     print("  Fetching somatic mutations …")
-    profiles = get_profiles(study_id)
-    if not profiles:
-        return None
-    mut_profile = next((p["molecularProfileId"] for p in profiles
-                        if "mutation" in p["molecularProfileId"]), None)
-    if not mut_profile:
-        return None
+    mut_profile = f"{study_id}_mutations"
     print(f"  Mutation profile: {mut_profile}")
 
-    sl = fetch_cbio(f"studies/{study_id}/sample-lists")
-    slist_id = f"{study_id}_sequenced"
-    if sl:
-        ids = [x["sampleListId"] for x in sl]
-        if slist_id not in ids:
-            slist_id = f"{study_id}_all"
-
-    body = {
-        "hugoGeneSymbols": gene_list,
-        "molecularProfileId": mut_profile,
-        "sampleListId": slist_id
-    }
-    data = fetch_cbio("mutations/fetch", json_body=body, method="POST")
-    if not data:
+    try:
+        df = fetch_mutations(
+            gene_list,
+            profile=mut_profile,
+            sample_list_id=f"{study_id}_sequenced",
+        )
+    except Exception as e:
+        print(f"  [WARN] {e}")
         return None
-    df = pd.DataFrame(data)
     df.to_csv(cache, index=False)
     return df
 
@@ -120,36 +115,18 @@ def get_cna(gene_list, study_id=STUDY_ID):
         return pd.read_csv(cache)
 
     print("  Fetching copy number alterations …")
-    profiles = get_profiles(study_id)
-    if not profiles:
-        return None
-    cna_profile = next((p["molecularProfileId"] for p in profiles
-                        if "gistic" in p["molecularProfileId"].lower() or
-                           "cna" in p["molecularProfileId"].lower()), None)
-    if not cna_profile:
-        cna_profile = next((p["molecularProfileId"] for p in profiles
-                            if "copy" in p.get("name","").lower()), None)
-    if not cna_profile:
-        print("  [WARN] No CNA profile found")
-        return None
+    cna_profile = f"{study_id}_gistic"
     print(f"  CNA profile: {cna_profile}")
 
-    sl = fetch_cbio(f"studies/{study_id}/sample-lists")
-    slist_id = f"{study_id}_cna"
-    if sl:
-        ids = [x["sampleListId"] for x in sl]
-        if slist_id not in ids:
-            slist_id = f"{study_id}_all"
-
-    body = {
-        "hugoGeneSymbols": gene_list,
-        "molecularProfileId": cna_profile,
-        "sampleListId": slist_id
-    }
-    data = fetch_cbio("molecular-profile-data/fetch", json_body=body, method="POST")
-    if not data:
+    try:
+        df = fetch_molecular_profile_data(
+            gene_list,
+            profile=cna_profile,
+            sample_list_id=f"{study_id}_cna",
+        )
+    except Exception as e:
+        print(f"  [WARN] {e}")
         return None
-    df = pd.DataFrame(data)
     df.to_csv(cache, index=False)
     return df
 
@@ -162,28 +139,18 @@ def get_expression(gene_list, study_id=STUDY_ID):
     cache = os.path.join(OUT, "expr_cache.csv")
     if os.path.exists(cache):
         return pd.read_csv(cache, index_col=0)
-    # Otherwise try API
-    profiles = get_profiles(study_id)
-    if not profiles:
+    try:
+        pivot = fetch_mrna_expression(
+            gene_list,
+            profile=f"{study_id}_rna_seq_v2_mrna",
+            sample_list_id=f"{study_id}_rna_seq_v2_mrna",
+        )
+    except Exception as e:
+        print(f"  [WARN] {e}")
         return None
-    mrna_profile = next((p["molecularProfileId"] for p in profiles
-                         if "rna_seq_v2_mrna" in p["molecularProfileId"]), None)
-    if not mrna_profile:
-        return None
-    sl = fetch_cbio(f"studies/{study_id}/sample-lists")
-    slist_id = f"{study_id}_rna_seq_v2_mrna"
-    body = {
-        "hugoGeneSymbols": gene_list,
-        "molecularProfileId": mrna_profile,
-        "sampleListId": slist_id
-    }
-    data = fetch_cbio("molecular-profile-data/fetch", json_body=body, method="POST")
-    if not data:
-        return None
-    df = pd.DataFrame(data)
-    pivot = df.pivot_table(index="sampleId", columns="hugoGeneSymbol",
-                           values="value", aggfunc="mean")
-    return np.log2(pivot + 1)
+    pivot = np.log2(pivot + 1)
+    pivot.to_csv(cache)
+    return pivot
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Simulated fallback (realistic TCGA-LIHC genomics statistics)

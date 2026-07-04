@@ -121,6 +121,12 @@ python 10_trpc6_inhibitors/trpc6_inhibitors.py
 
 The GSE14520 workflow downloads GEO data and may take several minutes depending on network speed.
 
+Reproducibility notes:
+
+- `02_geo_deg/geo_deg.py` first attempts to read the GSE140202 GEO series matrix. If GEO does not expose sample-level expression tables through the SOFT record, it regenerates the volcano plot from the checked-in `02_geo_deg/deg_full_results.csv` table.
+- `08_depmap_drug_sensitivity/depmap_drug_sensitivity.py` and `12_crispr_essentiality/crispr_essentiality.py` can use local DepMap raw files when supplied. Without those large files, they use small deterministic manuscript-summary fallbacks and state this in the console output.
+- `18_gse14520_validation/gse14520_validation.py` downloads the GSE14520 SOFT file over HTTPS. In the current SOFT metadata, overall-survival fields are not present, so the script generates tumor-vs-normal and SOCE/EMT validation outputs and skips the KM panel.
+
 ## Module-To-Manuscript Map
 
 | Manuscript result | Main module(s) | Primary output |

@@ -35,6 +35,8 @@ Author : Elmasnur Yilmaz (elmasnrylmz@gmail.com)
 """
 
 import os, warnings
+import sys
+from pathlib import Path
 import requests
 import numpy as np
 import pandas as pd
@@ -49,6 +51,9 @@ from lifelines import KaplanMeierFitter
 from lifelines.statistics import logrank_test
 
 warnings.filterwarnings("ignore")
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+from common.cbioportal import fetch_clinical_data, fetch_mrna_expression
 
 OUTDIR     = os.path.dirname(os.path.abspath(__file__))
 SOCE_GENES = ["STIM1", "TRPC6", "TRPC1", "ORAI1"]
@@ -71,24 +76,7 @@ def fetch_data() -> tuple[pd.DataFrame, pd.DataFrame]:
 
     if expr_cache is None:
         print("  Downloading expression from cBioPortal …")
-        base    = "https://www.cbioportal.org/api"
-        profile = "lihc_tcga_rna_seq_v2_mrna"
-        r = requests.get(f"{base}/sample-lists/lihc_tcga_all/sample-ids", timeout=60)
-        r.raise_for_status()
-        sample_ids = r.json()
-        r = requests.get(f"{base}/genes?geneIds={','.join(SOCE_GENES)}", timeout=60)
-        r.raise_for_status()
-        gene_map = {g["hugoGeneSymbol"]: g["entrezGeneId"] for g in r.json()}
-        data = {}
-        for symbol, entrez in gene_map.items():
-            payload = {"entrezGeneId": entrez, "molecularProfileId": profile, "sampleIds": sample_ids}
-            r = requests.post(f"{base}/molecular-profiles/{profile}/molecular-data/fetch",
-                              json=payload, timeout=120)
-            for row in r.json():
-                s = row["sampleId"]
-                if s not in data: data[s] = {}
-                data[s][symbol] = row["value"]
-        expr_cache = pd.DataFrame.from_dict(data, orient="index")[SOCE_GENES]
+        expr_cache = fetch_mrna_expression(SOCE_GENES)[SOCE_GENES]
 
     # Clinical
     clin_cache = None
@@ -97,19 +85,15 @@ def fetch_data() -> tuple[pd.DataFrame, pd.DataFrame]:
         os.path.join(OUTDIR, "..", "07_cox_regression", "_clinical_cache.csv"),
     ):
         if os.path.exists(p):
-            clin_cache = pd.read_csv(p, index_col=0)
-            print(f"  [clin cache] {p}")
-            break
+            df = pd.read_csv(p, index_col=0)
+            if {"OS_MONTHS", "OS_STATUS"}.issubset(df.columns):
+                clin_cache = df
+                print(f"  [clin cache] {p}")
+                break
 
     if clin_cache is None:
         print("  Downloading clinical data …")
-        base = "https://www.cbioportal.org/api"
-        r = requests.get(
-            f"{base}/studies/lihc_tcga/clinical-data?clinicalDataType=SAMPLE",
-            timeout=120)
-        r.raise_for_status()
-        clin_cache = pd.DataFrame(r.json()).pivot(
-            index="sampleId", columns="clinicalAttributeId", values="value")
+        clin_cache = fetch_clinical_data()
 
     return expr_cache, clin_cache
 

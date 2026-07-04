@@ -35,6 +35,8 @@ Author : Elmasnur Yilmaz (elmasnrylmz@gmail.com)
 """
 
 import os, warnings
+import sys
+from pathlib import Path
 import requests
 import numpy as np
 import pandas as pd
@@ -47,6 +49,9 @@ import matplotlib.patches as mpatches
 import seaborn as sns
 
 warnings.filterwarnings("ignore")
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+from common.cbioportal import fetch_mrna_expression
 
 OUTDIR     = os.path.dirname(os.path.abspath(__file__))
 SOCE_GENES = ["STIM1", "TRPC6", "TRPC1", "ORAI1"]
@@ -81,23 +86,7 @@ def load_expression() -> pd.DataFrame:
                 return df[avail]
 
     print("  Downloading expression from cBioPortal …")
-    base    = "https://www.cbioportal.org/api"
-    profile = "lihc_tcga_rna_seq_v2_mrna"
-    r = requests.get(f"{base}/sample-lists/lihc_tcga_all/sample-ids", timeout=60)
-    r.raise_for_status()
-    sids = r.json()
-    r = requests.get(f"{base}/genes?geneIds={','.join(ALL_GENES)}", timeout=60)
-    r.raise_for_status()
-    gmap = {g["hugoGeneSymbol"]: g["entrezGeneId"] for g in r.json()}
-    data = {}
-    for sym, eid in gmap.items():
-        pl = {"entrezGeneId": eid, "molecularProfileId": profile, "sampleIds": sids}
-        r = requests.post(f"{base}/molecular-profiles/{profile}/molecular-data/fetch",
-                          json=pl, timeout=120)
-        for row in r.json():
-            s = row["sampleId"]
-            data.setdefault(s, {})[sym] = row["value"]
-    df = pd.DataFrame.from_dict(data, orient="index")
+    df = fetch_mrna_expression(ALL_GENES)
     os.makedirs(OUTDIR, exist_ok=True)
     df.to_csv(os.path.join(OUTDIR, "_tcga_expr_cache.csv"))
     return df
@@ -168,11 +157,6 @@ def heatmap_clean(rho: pd.DataFrame, long_df: pd.DataFrame, suffix: str = "clean
     ax_ann.set_yticks([])
     ax_ann.set_xticks([])
     ax_ann.set_ylabel("Category", fontsize=8, rotation=0, labelpad=45)
-    for patch in [
-        mpatches.Patch(color=cat_colours["EMT"], label="EMT"),
-        mpatches.Patch(color=cat_colours["NF-κB / IL-6"], label="NF-κB / IL-6"),
-    ]:
-        ax_ann.add_patch(patch)
     ax_ann.legend(
         handles=[mpatches.Patch(color=v, label=k) for k, v in cat_colours.items()
                  if k != "other"],

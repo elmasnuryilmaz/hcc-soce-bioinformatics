@@ -24,10 +24,11 @@ from lifelines import KaplanMeierFitter
 from lifelines.statistics import logrank_test
 from lifelines import CoxPHFitter
 import GEOparse
+import requests
 import warnings
 warnings.filterwarnings('ignore')
 
-OUT = "mnt/Beste_Bioinformatics/18_gse14520_validation"
+OUT = os.path.dirname(os.path.abspath(__file__))
 os.makedirs(OUT, exist_ok=True)
 
 # ─── COLOUR PALETTE ──────────────────────────────────────────────────────────
@@ -53,7 +54,23 @@ print("\n[1] Downloading GSE14520 from GEO …")
 cache = os.path.join(OUT, "geo_cache")
 os.makedirs(cache, exist_ok=True)
 
-gse = GEOparse.get_GEO("GSE14520", destdir=cache, silent=True)
+def download_soft_file() -> str:
+    """Download the GSE SOFT file over HTTPS to avoid GEOparse FTP size issues."""
+    soft_path = os.path.join(cache, "GSE14520_family.soft.gz")
+    if os.path.exists(soft_path) and os.path.getsize(soft_path) > 0:
+        return soft_path
+    url = "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE14nnn/GSE14520/soft/GSE14520_family.soft.gz"
+    tmp_path = soft_path + ".tmp"
+    with requests.get(url, stream=True, timeout=300) as response:
+        response.raise_for_status()
+        with open(tmp_path, "wb") as fh:
+            for chunk in response.iter_content(chunk_size=1 << 20):
+                if chunk:
+                    fh.write(chunk)
+    os.replace(tmp_path, soft_path)
+    return soft_path
+
+gse = GEOparse.get_GEO(filepath=download_soft_file(), destdir=cache, silent=True)
 print(f"    GSMs: {len(gse.gsms)}")
 
 # ─── 2. EXTRACT EXPRESSION MATRIX ────────────────────────────────────────────
@@ -96,7 +113,7 @@ print(f"    Available SOCE: {[g for g in SOCE_GENES if g in expr_annot.index]}")
 print(f"    Available EMT:  {[g for g in EMT_GENES if g in expr_annot.index]}")
 
 expr_annot = expr_annot.T   # samples × genes
-expr_annot = expr_annot.groupby(level=0, axis=1).mean()
+expr_annot = expr_annot.T.groupby(level=0).mean().T
 
 # ─── 4. PARSE CLINICAL / SAMPLE METADATA ─────────────────────────────────────
 print("\n[4] Parsing clinical metadata …")
@@ -127,9 +144,9 @@ print(meta["tissue"].value_counts().head(10))
 
 # Determine tumor vs normal using the most informative available metadata field
 meta["tissue_label"] = (
-    meta.get("tissue", "").astype(str).str.lower() + " | " +
-    meta.get("title", "").astype(str).str.lower() + " | " +
-    meta.get("disease state", "").astype(str).str.lower()
+    meta.get("tissue", "").fillna("").astype(str).str.lower() + " | " +
+    meta.get("title", "").fillna("").astype(str).str.lower() + " | " +
+    meta.get("disease state", "").fillna("").astype(str).str.lower()
 )
 meta["sample_type"] = meta["tissue_label"].apply(
     lambda x: "Normal" if ("non-tumor" in x or "non tumor" in x or "normal" in x) else "Tumor"

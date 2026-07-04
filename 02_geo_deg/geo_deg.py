@@ -79,6 +79,12 @@ def load_geo(geo_id: str) -> tuple[pd.DataFrame, dict]:
             col = gsm.table.set_index("ID_REF")["VALUE"].rename(gsm_id)
             pivot_tables.append(col)
 
+    if not pivot_tables:
+        raise RuntimeError(
+            f"{geo_id} GEO series matrix contains no sample expression tables. "
+            "Use the checked-in DEG table or provide the original gene-level expression matrix."
+        )
+
     expr = pd.concat(pivot_tables, axis=1)
     expr = expr.apply(pd.to_numeric, errors="coerce")
 
@@ -177,9 +183,42 @@ def aggregate_to_gene(df_deg: pd.DataFrame, probe_map: pd.Series) -> pd.DataFram
     return df
 
 
+def normalise_deg_schema(df: pd.DataFrame) -> pd.DataFrame:
+    """Accept either this module's schema or the checked-in limma-style DEG table."""
+    df = df.copy()
+    if "gene" not in df.columns:
+        df["gene"] = df.index.astype(str)
+    if "log2FC" not in df.columns and "logFC" in df.columns:
+        df["log2FC"] = df["logFC"]
+    if "p_value" not in df.columns and "P.Value" in df.columns:
+        df["p_value"] = df["P.Value"]
+    if "FDR" not in df.columns and "adj.P.Val" in df.columns:
+        df["FDR"] = df["adj.P.Val"]
+    if "t_stat" not in df.columns and "t" in df.columns:
+        df["t_stat"] = df["t"]
+    if "gene" in df.columns:
+        df["gene"] = df["gene"].astype(str)
+        df = df.set_index("gene", drop=False)
+    required = {"log2FC", "p_value", "FDR"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"DEG table is missing required columns: {sorted(missing)}")
+    return df
+
+
+def load_existing_deg_table() -> pd.DataFrame:
+    """Load the repository's DEG table when GEO no longer exposes matrix values."""
+    deg_file = os.path.join(OUTDIR, "deg_full_results.csv")
+    if not os.path.exists(deg_file):
+        raise FileNotFoundError(f"Fallback DEG table not found: {deg_file}")
+    print(f"  [fallback] Loading existing DEG table: {deg_file}")
+    return normalise_deg_schema(pd.read_csv(deg_file))
+
+
 # ── 6. Volcano plot ───────────────────────────────────────────────────────────
 def volcano_plot(df: pd.DataFrame):
     """Publication-quality volcano plot."""
+    df = normalise_deg_schema(df)
     df = df.dropna(subset=["p_value", "log2FC"])
     neg_log10p = -np.log10(df["p_value"].clip(lower=1e-300))
 
@@ -239,14 +278,32 @@ if __name__ == "__main__":
     print("  Module 02 — GEO Differential Expression (GSE140202)")
     print("=" * 60)
 
-    expr, meta = load_geo(GEO_ID)
+    try:
+        expr, meta = load_geo(GEO_ID)
+    except Exception as exc:
+        print(f"  ⚠  GEO expression matrix unavailable: {exc}")
+        df_gene = load_existing_deg_table()
+        df_sig = df_gene[(df_gene["FDR"] < FDR_THRESH) & (df_gene["log2FC"].abs() > FC_THRESH)]
+        df_sig.to_csv(os.path.join(OUTDIR, "deg_significant.csv"), index=False)
+        print(f"  Significant (FDR<0.05, |log2FC|>1) : {len(df_sig)}")
+        print("\n[3/3] Volcano plot …")
+        volcano_plot(df_gene)
+        print("\n  Done using existing DEG table. All outputs saved to:", OUTDIR)
+        import sys; sys.exit(0)
+
     print(f"  Expression matrix: {expr.shape[0]} probes × {expr.shape[1]} samples")
 
     groups = assign_groups(meta)
     if len(groups) == 0:
         print("  ⚠  No samples matched resistant/sensitive patterns.")
-        print("     Inspect sample titles and update RESISTANT_PATTERN / SENSITIVE_PATTERN.")
-        import sys; sys.exit(1)
+        df_gene = load_existing_deg_table()
+        df_sig = df_gene[(df_gene["FDR"] < FDR_THRESH) & (df_gene["log2FC"].abs() > FC_THRESH)]
+        df_sig.to_csv(os.path.join(OUTDIR, "deg_significant.csv"), index=False)
+        print(f"  Significant (FDR<0.05, |log2FC|>1) : {len(df_sig)}")
+        print("\n[3/3] Volcano plot …")
+        volcano_plot(df_gene)
+        print("\n  Done using existing DEG table. All outputs saved to:", OUTDIR)
+        import sys; sys.exit(0)
 
     print("\n[1/3] Differential expression analysis …")
     df_deg_probe = run_deg(expr, groups)

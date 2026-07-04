@@ -69,7 +69,13 @@ def resolve_ids(genes: list[str]) -> dict:
     }
     r = requests.post(url, data=params, timeout=60)
     r.raise_for_status()
-    return {item["input"]: item["stringId"] for item in r.json()}
+    id_map = {}
+    for item in r.json():
+        query = item.get("queryItem") or item.get("input") or item.get("preferredName")
+        string_id = item.get("stringId")
+        if query and string_id:
+            id_map[query] = string_id
+    return id_map
 
 
 # ── 2. Get network ────────────────────────────────────────────────────────────

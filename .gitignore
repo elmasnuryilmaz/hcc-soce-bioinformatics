@@ -1,5 +1,12 @@
 # GEO cache (large binary data)
 18_gse14520_validation/geo_cache/
+**/geo_cache/
+
+# Analysis caches/logs regenerated from public sources
+**/*cache*.csv
+**/_*.csv
+**/gsea_geo_raw/*.log
+**/gsea_geo_raw/prerank/
 
 # DS_Store
 .DS_Store

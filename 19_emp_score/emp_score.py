@@ -27,6 +27,7 @@ Reference methodology:
 
 import os
 import sys
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -38,6 +39,9 @@ from scipy import stats
 import requests
 import warnings
 warnings.filterwarnings("ignore")
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+from common.cbioportal import fetch_clinical_data, fetch_mrna_expression
 
 # ── reproducibility ──────────────────────────────────────────────────────────
 np.random.seed(42)
@@ -81,6 +85,8 @@ ALL_GENES = list(set(E_GENES + M_GENES + SOCE_GENES))
 # ─────────────────────────────────────────────────────────────────────────────
 CBIO_BASE = "https://www.cbioportal.org/api"
 STUDY_ID  = "lihc_tcga_pan_can_atlas_2018"
+MRNA_PROFILE = f"{STUDY_ID}_rna_seq_v2_mrna"
+RNA_SAMPLE_LIST = f"{STUDY_ID}_rna_seq_v2_mrna"
 
 def fetch_cbio(endpoint, params=None, json_body=None, method="GET"):
     url = f"{CBIO_BASE}/{endpoint}"
@@ -104,60 +110,19 @@ def get_expression_data(gene_list, study_id=STUDY_ID):
         return pd.read_csv(cache, index_col=0)
 
     print("  Fetching expression from cBioPortal …")
-    # Get molecular profile
-    profiles = fetch_cbio(f"studies/{study_id}/molecular-profiles")
-    if not profiles:
+    try:
+        pivot = fetch_mrna_expression(
+            gene_list,
+            profile=f"{study_id}_rna_seq_v2_mrna",
+            sample_list_id=f"{study_id}_rna_seq_v2_mrna",
+        )
+    except Exception as e:
+        print(f"  [WARN] API call failed: {e}")
         return None
 
-    mrna_profile = None
-    for p in profiles:
-        if "rna_seq_v2_mrna" in p.get("molecularProfileId", ""):
-            mrna_profile = p["molecularProfileId"]
-            break
-    if not mrna_profile:
-        for p in profiles:
-            if "mrna" in p.get("molecularProfileId", "").lower():
-                mrna_profile = p["molecularProfileId"]
-                break
-    if not mrna_profile:
-        print(f"  [WARN] No mRNA profile found. Available: {[p.get('molecularProfileId') for p in profiles[:5]]}")
+    if pivot.empty:
         return None
 
-    print(f"  Using profile: {mrna_profile}")
-
-    # Get sample list
-    sl = fetch_cbio(f"studies/{study_id}/sample-lists")
-    sample_list_id = f"{study_id}_rna_seq_v2_mrna"
-    if sl:
-        ids = [x["sampleListId"] for x in sl]
-        if sample_list_id not in ids:
-            sample_list_id = f"{study_id}_all"
-
-    # Fetch in batches of 50 genes
-    all_data = []
-    batch_size = 50
-    for i in range(0, len(gene_list), batch_size):
-        batch = gene_list[i:i+batch_size]
-        body = {
-            "entrezGeneIds": [],
-            "hugoGeneSymbols": batch,
-            "molecularProfileId": mrna_profile,
-            "sampleListId": sample_list_id
-        }
-        res = fetch_cbio("molecular-profile-data/fetch", json_body=body, method="POST")
-        if res:
-            all_data.extend(res)
-        print(f"  Fetched {min(i+batch_size, len(gene_list))}/{len(gene_list)} genes …")
-
-    if not all_data:
-        return None
-
-    df = pd.DataFrame(all_data)
-    if "value" not in df.columns:
-        return None
-
-    pivot = df.pivot_table(index="sampleId", columns="hugoGeneSymbol",
-                           values="value", aggfunc="mean")
     pivot = np.log2(pivot + 1)
     pivot.to_csv(cache)
     print(f"  Expression matrix: {pivot.shape[0]} samples × {pivot.shape[1]} genes")
@@ -166,14 +131,15 @@ def get_expression_data(gene_list, study_id=STUDY_ID):
 def get_clinical_data(study_id=STUDY_ID):
     cache = os.path.join(OUT, "clinical_cache.csv")
     if os.path.exists(cache):
-        return pd.read_csv(cache, index_col=0)
+        df = pd.read_csv(cache, index_col=0)
+        if {"OS_MONTHS", "OS_STATUS"}.issubset(df.columns):
+            return df
     print("  Fetching clinical data …")
-    clin = fetch_cbio(f"studies/{study_id}/clinical-data", params={"clinicalDataType": "SAMPLE"})
-    if not clin:
+    try:
+        pivot = fetch_clinical_data(study_id=study_id)
+    except Exception as e:
+        print(f"  [WARN] Clinical API call failed: {e}")
         return None
-    df = pd.DataFrame(clin)
-    pivot = df.pivot_table(index="sampleId", columns="clinicalAttributeId",
-                           values="value", aggfunc="first")
     pivot.to_csv(cache)
     return pivot
 

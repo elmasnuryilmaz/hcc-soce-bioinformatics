@@ -2,7 +2,7 @@
 """
 10_trpc6_inhibitors.py  –  TRPC6 Inhibitor Landscape (ChEMBL)
 =============================================================
-Queries the ChEMBL REST API for compounds that inhibit TRPC6 (CHEMBL2364817),
+  Queries the ChEMBL REST API for compounds that inhibit TRPC6 (CHEMBL2417347),
 filters for drug-like molecules, and visualises the potency landscape.
 
 Data source
@@ -36,7 +36,7 @@ import seaborn as sns
 warnings.filterwarnings("ignore")
 
 OUTDIR          = os.path.dirname(os.path.abspath(__file__))
-TRPC6_CHEMBL_ID = "CHEMBL2364817"      # TRPC6 ChEMBL target ID
+TRPC6_CHEMBL_ID = "CHEMBL2417347"      # human TRPC6 ChEMBL target ID
 CHEMBL_API      = "https://www.ebi.ac.uk/chembl/api/data"
 MAX_PAGES       = 20
 PAGE_SIZE       = 1000
@@ -78,6 +78,8 @@ def fetch_bioactivities(target_id: str) -> pd.DataFrame:
 
 def filter_inhibitors(df: pd.DataFrame) -> pd.DataFrame:
     """Keep IC50 / Ki measurements with defined pChEMBL ≥ 5."""
+    if df.empty or "standard_type" not in df.columns:
+        return pd.DataFrame()
     keep_types = {"IC50", "Ki", "Kd", "EC50", "Potency"}
     df = df[df["standard_type"].isin(keep_types)].copy()
     df["pchembl_value"] = pd.to_numeric(df.get("pchembl_value", np.nan), errors="coerce")
@@ -90,6 +92,8 @@ def filter_inhibitors(df: pd.DataFrame) -> pd.DataFrame:
 
 def summarise(df_filt: pd.DataFrame) -> pd.DataFrame:
     """Summary by standard_type."""
+    if df_filt.empty or "standard_type" not in df_filt.columns:
+        return pd.DataFrame(columns=["n_compounds", "median_pchembl", "best_pchembl"])
     summary = df_filt.groupby("standard_type").agg(
         n_compounds=("molecule_chembl_id", "nunique"),
         median_pchembl=("pchembl_value", "median"),
@@ -164,8 +168,9 @@ if __name__ == "__main__":
     print("\n[2/3] Filtering drug-like inhibitors …")
     df_filt = filter_inhibitors(df_raw)
     df_filt.to_csv(os.path.join(OUTDIR, "chembl_trpc6_specific_inhibitors.csv"), index=False)
+    n_compounds = df_filt["molecule_chembl_id"].nunique() if "molecule_chembl_id" in df_filt.columns else 0
     print(f"  Filtered to {len(df_filt)} measurements "
-          f"({df_filt['molecule_chembl_id'].nunique()} unique compounds, pIC50 ≥ 5)")
+          f"({n_compounds} unique compounds, pIC50 ≥ 5)")
 
     summary = summarise(df_filt)
     summary.to_csv(os.path.join(OUTDIR, "trpc6_inhibitor_summary.csv"))

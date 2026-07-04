@@ -1,9 +1,9 @@
-Variable,Dual-High (n=99),Other (n=272),p-value
-"Age (years), median (IQR)",61.0 (53.0–69.0),61.0 (51.0–69.0),0.860
-"Male sex, n (%)",72 (72.7%),178 (65.4%),0.231
-"Stage III–IV, n (%)",23 (23.2%),67 (24.6%),0.864
-"High grade (G3/G4), n (%)",32 (32.3%),102 (37.5%),0.408
-"Vascular invasion, n (%)",24 (24.2%),85 (31.2%),0.162
-"AFP (ng/mL), median (IQR)",12.0 (4.0–53.2),16.0 (4.0–638.2),0.487
-"OS (months), median (IQR)",21.6 (12.0–42.4),18.3 (9.9–33.1),0.057
-"Death events, n (%)",28 (28.3%),102 (37.5%),0.128
+Variable,Type,Dual-High,STIM1-High,TRPC6-High,Dual-Low,p-value
+n,—,99,88,88,98,
+Age (years),continuous,61.0 (53.0–69.0),61.5 (51.8–68.2),61.0 (50.0–68.0),61.0 (52.0–69.8),0.9517
+Sex (Male %),binary,n=99,n=88,n=88,n=98,n.s.
+Tumour Stage,categorical,n=93,n=82,n=81,n=93,n.s.
+Grade,categorical,n=98,n=88,n=86,n=96,n.s.
+AFP (ng/mL),continuous,12.0 (4.0–51.5),22.5 (4.0–759.0),8.0 (3.0–233.0),27.0 (6.0–809.0),0.1705
+Vascular inv.,binary,n=24,n=27,n=31,n=28,n.s.
+Child-Pugh,categorical,n=67,n=65,n=50,n=58,n.s.

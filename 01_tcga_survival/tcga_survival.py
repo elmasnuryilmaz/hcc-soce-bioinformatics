@@ -26,6 +26,8 @@ Author : Elmasnur Yilmaz (elmasnrylmz@gmail.com)
 """
 
 import os, io, gzip, warnings
+import sys
+from pathlib import Path
 import requests
 import numpy as np
 import pandas as pd
@@ -39,6 +41,9 @@ from lifelines.statistics import logrank_test
 from lifelines.utils import median_survival_times
 
 warnings.filterwarnings("ignore")
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+from common.cbioportal import fetch_clinical_data, fetch_mrna_expression
 
 # ── Config ─────────────────────────────────────────────────────────────────
 OUTDIR   = os.path.dirname(os.path.abspath(__file__))
@@ -57,43 +62,7 @@ def fetch_cbioportal_expression(genes: list[str]) -> pd.DataFrame:
         return pd.read_csv(cache, index_col=0)
 
     print("  Downloading TCGA-LIHC expression from cBioPortal …")
-    base = "https://www.cbioportal.org/api"
-
-    # Step 1: get Entrez IDs for our genes
-    genes_param = ",".join(genes)
-    r = requests.get(f"{base}/genes?geneIds={genes_param}", timeout=60)
-    r.raise_for_status()
-    gene_info = {g["hugoGeneSymbol"]: g["entrezGeneId"] for g in r.json()}
-
-    # Step 2: fetch all sample IDs in lihc_tcga_all
-    r = requests.get(
-        f"{base}/sample-lists/lihc_tcga_all/sample-ids", timeout=60
-    )
-    r.raise_for_status()
-    sample_ids = r.json()
-
-    # Step 3: fetch expression (batch of samples to avoid URL-length limit)
-    profile = "lihc_tcga_rna_seq_v2_mrna"
-    all_data = []
-    for symbol, entrez in gene_info.items():
-        payload = {
-            "entrezGeneId": entrez,
-            "molecularProfileId": profile,
-            "sampleIds": sample_ids,
-        }
-        r = requests.post(
-            f"{base}/molecular-profiles/{profile}/molecular-data/fetch",
-            json=payload,
-            timeout=120,
-        )
-        r.raise_for_status()
-        for row in r.json():
-            all_data.append(
-                {"sample": row["sampleId"], symbol: row["value"]}
-            )
-
-    df = pd.DataFrame(all_data)
-    df = df.groupby("sample").first()  # one row per sample
+    df = fetch_mrna_expression(genes)
     df.to_csv(cache)
     print(f"  Saved cache: {cache}  ({df.shape[0]} samples)")
     return df
@@ -112,7 +81,7 @@ def fetch_gtex_liver(genes: list[str]) -> dict:
 
     print("  Downloading GTEx v8 median TPM table …")
     url = (
-        "https://storage.googleapis.com/gtex_analysis_v8/rna_seq_data/"
+        "https://storage.googleapis.com/adult-gtex/bulk-gex/v8/rna-seq/"
         "GTEx_Analysis_2017-06-05_v8_RNASeQCv1.1.9_gene_median_tpm.gct.gz"
     )
     r = requests.get(url, timeout=300, stream=True)
@@ -147,19 +116,13 @@ def fetch_tcga_clinical() -> pd.DataFrame:
     """Returns TCGA-LIHC clinical DataFrame from cBioPortal."""
     cache = os.path.join(OUTDIR, "_tcga_lihc_clinical_cache.csv")
     if os.path.exists(cache):
-        return pd.read_csv(cache, index_col=0)
+        df = pd.read_csv(cache, index_col=0)
+        if {"OS_MONTHS", "OS_STATUS"}.issubset(df.columns):
+            return df
+        print(f"  [cache] Ignoring clinical cache without survival columns: {cache}")
 
     print("  Downloading TCGA-LIHC clinical data …")
-    base = "https://www.cbioportal.org/api"
-    r = requests.get(
-        f"{base}/studies/lihc_tcga/clinical-data?clinicalDataType=SAMPLE",
-        timeout=120,
-    )
-    r.raise_for_status()
-    rows = r.json()
-    df = pd.DataFrame(rows).pivot(
-        index="sampleId", columns="clinicalAttributeId", values="value"
-    )
+    df = fetch_clinical_data()
     df.to_csv(cache)
     return df
 
@@ -289,8 +252,8 @@ def km_survival(expr: pd.DataFrame, clinical: pd.DataFrame):
         kmf_h.plot_survival_function(ax=ax, ci_show=True, color="#c0392b")
         kmf_l.plot_survival_function(ax=ax, ci_show=True, color="#2980b9")
 
-        med_h = median_survival_times(kmf_h.survival_function_)
-        med_l = median_survival_times(kmf_l.survival_function_)
+        med_h = kmf_h.median_survival_time_
+        med_l = kmf_l.median_survival_time_
 
         p_label = f"p = {pval:.3f}" if pval >= 0.001 else f"p = {pval:.2e}"
         ax.text(0.98, 0.98, p_label, transform=ax.transAxes,
@@ -304,8 +267,8 @@ def km_survival(expr: pd.DataFrame, clinical: pd.DataFrame):
             "gene":             gene,
             "n_high":           len(grp_high),
             "n_low":            len(grp_low),
-            "median_OS_high":   float(med_h.values[0]) if len(med_h) else np.nan,
-            "median_OS_low":    float(med_l.values[0]) if len(med_l) else np.nan,
+            "median_OS_high":   float(med_h) if pd.notna(med_h) else np.nan,
+            "median_OS_low":    float(med_l) if pd.notna(med_l) else np.nan,
             "logrank_p":        round(pval, 4),
         })
 

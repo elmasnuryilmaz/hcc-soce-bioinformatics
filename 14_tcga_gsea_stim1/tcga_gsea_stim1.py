@@ -115,16 +115,26 @@ def run_geo_gsea() -> pd.DataFrame:
         return pd.DataFrame()
 
     print(f"  Loading DEG ranking from {DEG_FILE} …")
-    df_deg = pd.read_csv(DEG_FILE, index_col=0)
+    df_deg = pd.read_csv(DEG_FILE)
 
-    if "t_stat" not in df_deg.columns:
-        print("  ⚠  't_stat' column missing. Using log2FC as ranking.")
-        rank_col = "log2FC"
-    else:
+    if "gene" in df_deg.columns:
+        df_deg = df_deg.set_index("gene", drop=False)
+
+    if "t_stat" in df_deg.columns:
         rank_col = "t_stat"
+    elif "t" in df_deg.columns:
+        rank_col = "t"
+    elif "log2FC" in df_deg.columns:
+        print("  ⚠  t-statistic column missing. Using log2FC as ranking.")
+        rank_col = "log2FC"
+    elif "logFC" in df_deg.columns:
+        print("  ⚠  t-statistic column missing. Using logFC as ranking.")
+        rank_col = "logFC"
+    else:
+        raise ValueError("DEG table must contain t_stat, t, log2FC, or logFC.")
 
     rnk = df_deg[[rank_col]].dropna().sort_values(rank_col, ascending=False)
-    rnk = rnk.reset_index()
+    rnk = rnk[~rnk.index.duplicated(keep="first")].reset_index()
     rnk.columns = ["gene", "score"]
 
     print(f"  Running GSEA with {len(rnk)} genes × {GENE_SETS} …")

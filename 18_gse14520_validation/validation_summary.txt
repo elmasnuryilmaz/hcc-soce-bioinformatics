@@ -1,0 +1,24 @@
+GSE14520 INDEPENDENT VALIDATION SUMMARY
+==================================================
+
+Dataset: GSE14520 (Roessler et al.)
+Samples: 247 tumor, 241 normal
+
+TUMOR vs NORMAL:
+  STIM1: log2FC=+0.03, p=1.10e-04 ***
+  TRPC6: log2FC=+0.00, p=4.61e-01 *
+  TRPC1: log2FC=+0.08, p=1.83e-12 ***
+
+CO-EXPRESSION VALIDATION:
+ SOCE Partner  TCGA_rho GSE14520_rho  Validated
+TRPC6     VIM      0.48       -0.076      False
+TRPC6    ZEB2      0.45        0.009      False
+TRPC6    ZEB1      0.39          N/A      False
+TRPC6  TWIST1      0.39        0.261       True
+TRPC6   SNAI1      0.31       -0.016      False
+STIM1    IL6R      0.41        0.148       True
+STIM1   ABCC2      0.37        0.157       True
+STIM1    RELA      0.25        0.223       True
+STIM1   NFKB1      0.16        0.018      False
+
+Overall: 4/9 key correlations validated

@@ -32,6 +32,8 @@ Author : Elmasnur Yilmaz (elmasnrylmz@gmail.com)
 """
 
 import os, warnings
+import sys
+from pathlib import Path
 import requests
 import numpy as np
 import pandas as pd
@@ -43,6 +45,9 @@ import matplotlib.gridspec as gridspec
 import seaborn as sns
 
 warnings.filterwarnings("ignore")
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+from common.cbioportal import fetch_clinical_data, fetch_mrna_expression
 
 OUTDIR     = os.path.dirname(os.path.abspath(__file__))
 SOCE_GENES = ["STIM1", "TRPC6"]
@@ -69,23 +74,7 @@ def load_data() -> tuple[pd.DataFrame, pd.DataFrame]:
                 expr = df[SOCE_GENES]; break
     else:
         print("  Downloading expression from cBioPortal …")
-        base    = "https://www.cbioportal.org/api"
-        profile = "lihc_tcga_rna_seq_v2_mrna"
-        r = requests.get(f"{base}/sample-lists/lihc_tcga_all/sample-ids", timeout=60)
-        r.raise_for_status()
-        sids = r.json()
-        r = requests.get(f"{base}/genes?geneIds={','.join(SOCE_GENES)}", timeout=60)
-        r.raise_for_status()
-        gene_map = {g["hugoGeneSymbol"]: g["entrezGeneId"] for g in r.json()}
-        data = {}
-        for sym, eid in gene_map.items():
-            pl = {"entrezGeneId": eid, "molecularProfileId": profile, "sampleIds": sids}
-            r = requests.post(f"{base}/molecular-profiles/{profile}/molecular-data/fetch",
-                              json=pl, timeout=120)
-            for row in r.json():
-                s = row["sampleId"]
-                data.setdefault(s, {})[sym] = row["value"]
-        expr = pd.DataFrame.from_dict(data, orient="index")[SOCE_GENES]
+        expr = fetch_mrna_expression(SOCE_GENES)[SOCE_GENES]
 
     # Clinical
     for cache in (
@@ -93,15 +82,12 @@ def load_data() -> tuple[pd.DataFrame, pd.DataFrame]:
         os.path.join(OUTDIR, "..", "07_cox_regression", "_clinical_cache.csv"),
     ):
         if os.path.exists(cache):
-            clin = pd.read_csv(cache, index_col=0); break
+            df = pd.read_csv(cache, index_col=0)
+            if {"OS_MONTHS", "OS_STATUS"}.issubset(df.columns):
+                clin = df; break
     else:
         print("  Downloading clinical data …")
-        base = "https://www.cbioportal.org/api"
-        r = requests.get(f"{base}/studies/lihc_tcga/clinical-data?clinicalDataType=SAMPLE",
-                         timeout=120)
-        r.raise_for_status()
-        clin = pd.DataFrame(r.json()).pivot(
-            index="sampleId", columns="clinicalAttributeId", values="value")
+        clin = fetch_clinical_data()
 
     return expr, clin
 
@@ -221,7 +207,7 @@ def visualise(expr: pd.DataFrame, groups: pd.Series, table: pd.DataFrame):
         ax = fig.add_subplot(gs[gi, 2])
         data = [merged_eg[merged_eg["group"] == g][gene].dropna().values
                 for g in GROUP_COLOURS]
-        bp = ax.boxplot(data, labels=list(GROUP_COLOURS.keys()),
+        bp = ax.boxplot(data, tick_labels=list(GROUP_COLOURS.keys()),
                         patch_artist=True, widths=0.5,
                         medianprops=dict(color="white", linewidth=2))
         for patch, colour in zip(bp["boxes"], GROUP_COLOURS.values()):

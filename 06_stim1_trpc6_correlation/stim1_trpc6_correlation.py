@@ -22,6 +22,8 @@ Author : Elmasnur Yilmaz (elmasnrylmz@gmail.com)
 """
 
 import os, warnings
+import sys
+from pathlib import Path
 import requests
 import numpy as np
 import pandas as pd
@@ -32,6 +34,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 warnings.filterwarnings("ignore")
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+from common.cbioportal import fetch_mrna_expression
 
 OUTDIR = os.path.dirname(os.path.abspath(__file__))
 GENES  = ["STIM1", "TRPC6", "TRPC1", "ORAI1"]
@@ -49,28 +54,7 @@ def fetch_expression(genes: list[str]) -> pd.DataFrame:
                 return df[genes]
 
     print("  Downloading TCGA-LIHC expression …")
-    base    = "https://www.cbioportal.org/api"
-    profile = "lihc_tcga_rna_seq_v2_mrna"
-    r = requests.get(f"{base}/sample-lists/lihc_tcga_all/sample-ids", timeout=60)
-    r.raise_for_status()
-    sample_ids = r.json()
-
-    r = requests.get(f"{base}/genes?geneIds={','.join(genes)}", timeout=60)
-    r.raise_for_status()
-    gene_map = {g["hugoGeneSymbol"]: g["entrezGeneId"] for g in r.json()}
-
-    data = {}
-    for symbol, entrez in gene_map.items():
-        payload = {"entrezGeneId": entrez, "molecularProfileId": profile, "sampleIds": sample_ids}
-        r = requests.post(f"{base}/molecular-profiles/{profile}/molecular-data/fetch",
-                          json=payload, timeout=120)
-        for row in r.json():
-            s = row["sampleId"]
-            if s not in data:
-                data[s] = {}
-            data[s][symbol] = row["value"]
-
-    df = pd.DataFrame.from_dict(data, orient="index")
+    df = fetch_mrna_expression(genes)
     df.to_csv(cache)
     return df
 

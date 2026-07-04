@@ -31,6 +31,8 @@ Outputs:
 """
 
 import os
+import sys
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -41,6 +43,9 @@ from scipy import stats
 import requests
 import warnings
 warnings.filterwarnings("ignore")
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+from common.cbioportal import fetch_clinical_data, fetch_mrna_expression
 
 np.random.seed(42)
 
@@ -108,53 +113,34 @@ def fetch_cbio(endpoint, params=None, json_body=None, method="GET"):
         return None
 
 def get_expression(gene_list, study_id=STUDY_ID):
-    for sibling in ["19_emp_score","21_tumor_purity","20_mutation_cna"]:
-        sib = os.path.join(os.path.dirname(OUT), sibling, "expr_cache.csv")
-        if os.path.exists(sib):
-            print(f"  Loading expression from {sibling} cache …")
-            return pd.read_csv(sib, index_col=0)
     cache = os.path.join(OUT, "expr_cache.csv")
     if os.path.exists(cache):
         return pd.read_csv(cache, index_col=0)
     print("  Fetching expression from cBioPortal …")
-    profiles = fetch_cbio(f"studies/{study_id}/molecular-profiles")
-    if not profiles:
+    try:
+        pivot = fetch_mrna_expression(
+            gene_list,
+            profile=f"{study_id}_rna_seq_v2_mrna",
+            sample_list_id=f"{study_id}_rna_seq_v2_mrna",
+        )
+    except Exception as e:
+        print(f"  [WARN] {e}")
         return None
-    mrna = next((p["molecularProfileId"] for p in profiles
-                 if "rna_seq_v2_mrna" in p["molecularProfileId"]), None)
-    if not mrna:
-        return None
-    all_data = []
-    for i in range(0, len(gene_list), 50):
-        batch = gene_list[i:i+50]
-        res = fetch_cbio("molecular-profile-data/fetch", method="POST",
-                         json_body={"hugoGeneSymbols": batch,
-                                    "molecularProfileId": mrna,
-                                    "sampleListId": f"{study_id}_rna_seq_v2_mrna"})
-        if res:
-            all_data.extend(res)
-    if not all_data:
-        return None
-    df = pd.DataFrame(all_data)
-    pivot = df.pivot_table(index="sampleId", columns="hugoGeneSymbol",
-                           values="value", aggfunc="mean")
-    return np.log2(pivot + 1)
+    pivot = np.log2(pivot + 1)
+    pivot.to_csv(cache)
+    return pivot
 
 def get_clinical(study_id=STUDY_ID):
-    for sibling in ["19_emp_score","07_cox_regression"]:
-        sib = os.path.join(os.path.dirname(OUT), sibling, "clinical_cache.csv")
-        if os.path.exists(sib):
-            return pd.read_csv(sib, index_col=0)
     cache = os.path.join(OUT, "clinical_cache.csv")
     if os.path.exists(cache):
-        return pd.read_csv(cache, index_col=0)
-    clin = fetch_cbio(f"studies/{study_id}/clinical-data",
-                      params={"clinicalDataType":"SAMPLE"})
-    if not clin:
+        df = pd.read_csv(cache, index_col=0)
+        if {"OS_MONTHS", "OS_STATUS"}.issubset(df.columns):
+            return df
+    try:
+        pivot = fetch_clinical_data(study_id=study_id)
+    except Exception as e:
+        print(f"  [WARN] {e}")
         return None
-    df = pd.DataFrame(clin)
-    pivot = df.pivot_table(index="sampleId", columns="clinicalAttributeId",
-                           values="value", aggfunc="first")
     pivot.to_csv(cache)
     return pivot
 

@@ -28,6 +28,8 @@ Author : Elmasnur Yilmaz (elmasnrylmz@gmail.com)
 """
 
 import os, warnings
+import sys
+from pathlib import Path
 import requests
 import numpy as np
 import pandas as pd
@@ -40,6 +42,9 @@ import matplotlib.colors as mcolors
 import seaborn as sns
 
 warnings.filterwarnings("ignore")
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+from common.cbioportal import fetch_mrna_expression
 
 OUTDIR     = os.path.dirname(os.path.abspath(__file__))
 SOCE_GENES = ["STIM1", "TRPC6", "TRPC1", "ORAI1"]
@@ -81,23 +86,7 @@ def load_expression() -> pd.DataFrame:
                 return df[avail]
 
     print("  Downloading expression from cBioPortal …")
-    base    = "https://www.cbioportal.org/api"
-    profile = "lihc_tcga_rna_seq_v2_mrna"
-    r = requests.get(f"{base}/sample-lists/lihc_tcga_all/sample-ids", timeout=60)
-    r.raise_for_status()
-    sids = r.json()
-    r = requests.get(f"{base}/genes?geneIds={','.join(ALL_GENES)}", timeout=60)
-    r.raise_for_status()
-    gmap = {g["hugoGeneSymbol"]: g["entrezGeneId"] for g in r.json()}
-    data = {}
-    for sym, eid in gmap.items():
-        pl = {"entrezGeneId": eid, "molecularProfileId": profile, "sampleIds": sids}
-        r = requests.post(f"{base}/molecular-profiles/{profile}/molecular-data/fetch",
-                          json=pl, timeout=120)
-        for row in r.json():
-            s = row["sampleId"]
-            data.setdefault(s, {})[sym] = row["value"]
-    return pd.DataFrame.from_dict(data, orient="index")
+    return fetch_mrna_expression(ALL_GENES)
 
 
 def compute_corr(df: pd.DataFrame) -> pd.DataFrame:

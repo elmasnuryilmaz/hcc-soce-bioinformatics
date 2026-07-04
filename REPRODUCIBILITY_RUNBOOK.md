@@ -140,3 +140,9 @@ Before pushing:
 2. Confirm that the manuscript only claims what the code directly demonstrates.
 3. Confirm that exploratory analyses are labeled exploratory.
 4. Confirm that no temporary files from `tmp/` are accidentally staged unless intentionally needed.
+
+## Current External-Source Caveats
+
+- `02_geo_deg` uses the checked-in `deg_full_results.csv` as a fallback when the GSE140202 SOFT record does not expose sample-level expression tables.
+- `08_depmap_drug_sensitivity` and `12_crispr_essentiality` can run from local DepMap raw files; otherwise they generate deterministic manuscript-summary fallback outputs and say so in the console.
+- `18_gse14520_validation` downloads GSE14520 through HTTPS because GEO FTP size checks can fail in GEOparse. The current SOFT metadata lacks OS columns, so KM survival is skipped while tumor-normal and SOCE/EMT validation outputs are generated.

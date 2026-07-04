@@ -38,6 +38,8 @@ Author : Elmasnur Yilmaz (elmasnrylmz@gmail.com)
 """
 
 import os, warnings
+import sys
+from pathlib import Path
 import requests
 import numpy as np
 import pandas as pd
@@ -48,6 +50,9 @@ import matplotlib.pyplot as plt
 from lifelines import CoxPHFitter
 
 warnings.filterwarnings("ignore")
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+from common.cbioportal import fetch_clinical_data, fetch_mrna_expression
 
 # ── Config ───────────────────────────────────────────────────────────────────
 OUTDIR = os.path.dirname(os.path.abspath(__file__))
@@ -70,27 +75,7 @@ def fetch_expression() -> pd.DataFrame:
                 return df[GENES]
 
     print("  Downloading expression from cBioPortal …")
-    base    = "https://www.cbioportal.org/api"
-    profile = "lihc_tcga_rna_seq_v2_mrna"
-    r = requests.get(f"{base}/sample-lists/lihc_tcga_all/sample-ids", timeout=60)
-    r.raise_for_status()
-    sample_ids = r.json()
-
-    r = requests.get(f"{base}/genes?geneIds={','.join(GENES)}", timeout=60)
-    r.raise_for_status()
-    gene_map = {g["hugoGeneSymbol"]: g["entrezGeneId"] for g in r.json()}
-
-    data = {}
-    for symbol, entrez in gene_map.items():
-        payload = {"entrezGeneId": entrez, "molecularProfileId": profile, "sampleIds": sample_ids}
-        r = requests.post(
-            f"{base}/molecular-profiles/{profile}/molecular-data/fetch",
-            json=payload, timeout=120)
-        for row in r.json():
-            s = row["sampleId"]
-            if s not in data: data[s] = {}
-            data[s][symbol] = row["value"]
-    return pd.DataFrame.from_dict(data, orient="index")
+    return fetch_mrna_expression(GENES)
 
 
 def fetch_clinical() -> pd.DataFrame:
@@ -98,21 +83,20 @@ def fetch_clinical() -> pd.DataFrame:
     cache = os.path.join(OUTDIR, "_clinical_cache.csv")
     if os.path.exists(cache):
         print(f"  [cache clinical] {cache}")
-        return pd.read_csv(cache, index_col=0)
+        df = pd.read_csv(cache, index_col=0)
+        if {"OS_MONTHS", "OS_STATUS"}.issubset(df.columns):
+            return df
+        print("  [cache clinical] Missing survival columns; refreshing.")
 
     # Try sibling cache
     sib = os.path.join(OUTDIR, "..", "01_tcga_survival", "_tcga_lihc_clinical_cache.csv")
     if os.path.exists(sib):
-        return pd.read_csv(sib, index_col=0)
+        df = pd.read_csv(sib, index_col=0)
+        if {"OS_MONTHS", "OS_STATUS"}.issubset(df.columns):
+            return df
 
     print("  Downloading clinical data from cBioPortal …")
-    base = "https://www.cbioportal.org/api"
-    r = requests.get(
-        f"{base}/studies/lihc_tcga/clinical-data?clinicalDataType=SAMPLE",
-        timeout=120)
-    r.raise_for_status()
-    df = pd.DataFrame(r.json()).pivot(
-        index="sampleId", columns="clinicalAttributeId", values="value")
+    df = fetch_clinical_data()
     df.to_csv(cache)
     return df
 

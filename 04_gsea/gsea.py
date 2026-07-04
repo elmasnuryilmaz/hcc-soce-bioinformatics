@@ -51,12 +51,20 @@ FDR_THRESH = 0.25    # standard GSEA threshold
 def load_ranking(deg_file: str) -> pd.Series:
     """
     Returns a Series (index = gene, values = t-stat) sorted descending.
-    Uses t_stat as ranking metric (more robust than log2FC alone).
+    Uses a t-statistic ranking when available (more robust than log2FC alone).
     """
     df = pd.read_csv(deg_file, index_col=0)
-    if "t_stat" not in df.columns:
-        raise ValueError("deg_full_results.csv must contain 't_stat' column (from Module 02).")
-    ranking = df["t_stat"].dropna().sort_values(ascending=False)
+    if "t_stat" in df.columns:
+        ranking = df["t_stat"]
+    elif "t" in df.columns:
+        if "gene" in df.columns:
+            ranking = df.set_index("gene")["t"]
+        else:
+            ranking = df["t"]
+    else:
+        raise ValueError("deg_full_results.csv must contain 't_stat' or 't' column.")
+    ranking = ranking.dropna().sort_values(ascending=False)
+    ranking = ranking[~ranking.index.duplicated(keep="first")]
     return ranking
 
 
