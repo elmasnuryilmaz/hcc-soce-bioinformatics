@@ -39,6 +39,7 @@ warnings.filterwarnings("ignore")
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from common.cbioportal import fetch_clinical_data, fetch_mrna_expression
+from common.staging import ajcc_stage_group
 
 OUTDIR = os.path.dirname(os.path.abspath(__file__))
 GENES  = ["STIM1", "TRPC6"]
@@ -99,10 +100,7 @@ def prepare_merged(expr, clin):
 
     stage_col = next((c for c in merged.columns if "STAGE" in c.upper()), None)
     if stage_col:
-        merged["stage"] = (
-            merged[stage_col].astype(str).str.upper()
-            .str.extract(r"(I{1,3}V?|IV)$")[0]
-        )
+        merged["stage"] = ajcc_stage_group(merged[stage_col])   # IIIA -> III, IVB -> IV
     else:
         merged["stage"] = np.nan
 

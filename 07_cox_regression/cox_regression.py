@@ -53,6 +53,7 @@ warnings.filterwarnings("ignore")
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from common.cbioportal import fetch_clinical_data, fetch_mrna_expression
+from common.staging import ajcc_stage_group
 
 # ── Config ───────────────────────────────────────────────────────────────────
 OUTDIR = os.path.dirname(os.path.abspath(__file__))
@@ -123,15 +124,13 @@ def prepare_cox_data(expr: pd.DataFrame, clin: pd.DataFrame) -> pd.DataFrame:
         if g in merged.columns:
             merged[f"{g}_log2"] = np.log2(merged[g].clip(lower=0) + 1)
 
-    # Tumour stage – ordinal 1-4
+    # Tumour stage – ordinal 1-4 (IIIA/IIIB/IIIC count as III, IVA/IVB as IV)
     stage_col = next((c for c in merged.columns if "STAGE" in c.upper()), None)
     if stage_col:
-        stage_map = {"I": 1, "II": 2, "III": 3, "IV": 4,
-                     "STAGE I": 1, "STAGE II": 2, "STAGE III": 3, "STAGE IV": 4}
         merged["stage"] = (
-            merged[stage_col].astype(str).str.upper()
-            .str.extract(r"(I{1,3}V?)$")[0]
+            ajcc_stage_group(merged[stage_col])
             .map({"I": 1, "II": 2, "III": 3, "IV": 4})
+            .astype(float)
         )
 
     # Sex binary
